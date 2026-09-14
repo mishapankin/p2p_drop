@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Drop
 
-## Getting Started
+A static, two-device file transfer app for https://mishapankin.github.io/p2p_drop/.
 
-First, run the development server:
+Open the app on one device, scan its QR code on another (or copy the invitation link), and keep both tabs open. Either device can choose a file and send it. The receiver accepts the transfer, then taps Save.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
+## Development
+
+Requires Node.js 24+ and pnpm (the version is pinned in package.json).
+
+```sh
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000/p2p_drop/. For testing with a phone, use the deployed HTTPS site; clipboard and UUID APIs require a secure context.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```sh
+pnpm lint
+pnpm test
+pnpm build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The complete static site is generated in `out/`. No Next.js server is needed in production. Serve the output at `/p2p_drop/`, matching `basePath` in `next.config.ts`.
 
-## Learn More
+## GitHub Pages
 
-To learn more about Next.js, take a look at the following resources:
+The included `.github/workflows/pages.yml` builds and deploys pushes to `main`, or can be run manually from Actions. In the `mishapankin/p2p_drop` repository, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. Push the project to `main` to deploy.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Invitations use `https://mishapankin.github.io/p2p_drop/#<uuid>` so GitHub Pages can serve every invitation from the same static page. The host keeps its base URL; refreshing it creates a new invitation. Invitations require the host tab to remain open.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Transfer behavior
 
-## Deploy on Vercel
+- PeerJS Cloud provides external signaling; Google STUN helps discover direct routes. Internet access is needed for pairing.
+- File bytes use an encrypted WebRTC data channel between the browsers. No file storage or application backend is involved.
+- No TURN relay is configured. Some VPNs, corporate networks, or restrictive NATs cannot connect; try a different network.
+- One connected pair, one file at a time, in either direction. Additional devices are refused.
+- Files are capped at 100 MiB. The receiver holds the file in memory until it is saved or replaced by another transfer. This is not a guarantee that every mobile device can handle the maximum.
+- Explicit acceptance is required before sending bytes. 64 KiB chunks are acknowledged individually to bound outgoing buffering. The receiver checks chunk offsets and total length before offering Save.
+- A 30-second stall, cancellation, or disconnect aborts the transfer. Acceptance expires after two minutes. Interrupted transfers must restart; there is no background transfer or resume.
+- Keep the invitation private: anyone holding it can attempt to join the session. There are no accounts or persistent device identities.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`lib/transfer.test.ts` tests the transport-independent protocol, including exact binary contents in both directions, empty files, declines, simultaneous offers, disconnects, malformed data, and timeouts. Real WebRTC connectivity depends on the devices and network.
